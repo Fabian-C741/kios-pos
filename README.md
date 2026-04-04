@@ -92,4 +92,4 @@ WHATSAPP_PHONE_NUMBER_ID=tu_phone_id
 
 ## Licencia
 
-Software para Kiosco - Todos los derechos reservados
+Software para Kiosco - Fabian-C741
