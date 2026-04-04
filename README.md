@@ -1,4 +1,4 @@
-# Sistema Kiosco - Laravel
+# Software para Kiosco
 
 Sistema de punto de venta (POS) para kioscos y pequeños negocios.
 
@@ -92,4 +92,4 @@ WHATSAPP_PHONE_NUMBER_ID=tu_phone_id
 
 ## Licencia
 
-MIT
+Software para Kiosco - Todos los derechos reservados

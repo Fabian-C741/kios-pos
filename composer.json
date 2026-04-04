@@ -3,7 +3,7 @@
     "type": "project",
     "description": "Sistema de Kiosco - Gestión de productos, ventas y caja",
     "keywords": ["laravel", "kiosco", "pos", "ventas"],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.2",
