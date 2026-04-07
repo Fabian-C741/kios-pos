@@ -13,6 +13,7 @@ class UserSeeder extends Seeder
     {
         $admin = User::create([
             'name' => 'Administrador',
+            'username' => 'admin',
             'email' => 'admin@kiosco.com',
             'password' => Hash::make('password'),
             'telefono' => '5512345678',
@@ -22,6 +23,7 @@ class UserSeeder extends Seeder
 
         $cajero1 = User::create([
             'name' => 'Cajero Principal',
+            'username' => 'cajero',
             'email' => 'cajero@kiosco.com',
             'password' => Hash::make('password'),
             'telefono' => '5587654321',
@@ -31,6 +33,7 @@ class UserSeeder extends Seeder
 
         $cajero2 = User::create([
             'name' => 'Segundo Turno',
+            'username' => 'cajero2',
             'email' => 'cajero2@kiosco.com',
             'password' => Hash::make('password'),
             'telefono' => '5598765432',

@@ -37,10 +37,23 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($venta->detalles as $detalle)
+            @php
+                $nombresPersistidos = [];
+                if ($venta->notas && str_contains($venta->notas, 'NAMES_JSON:')) {
+                    $partes = explode('NAMES_JSON:', $venta->notas);
+                    $nombresPersistidos = json_decode($partes[1], true) ?? [];
+                }
+            @endphp
+            @foreach($venta->detalles as $index => $detalle)
             <tr>
-                <td>{{ substr($detalle->producto->nombre, 0, 20) }}</td>
-                <td class="right">{{ $detalle->cantidad }}</td>
+                <td>{{ isset($nombresPersistidos[$index]) && !empty($nombresPersistidos[$index]) ? substr(strtoupper($nombresPersistidos[$index]), 0, 20) : substr($detalle->producto->nombre, 0, 20) }}</td>
+                <td class="right">
+                    @if($detalle->producto->medida === 'kg')
+                        {{ number_format($detalle->cantidad, 3) }} kg
+                    @else
+                        {{ $detalle->cantidad }}
+                    @endif
+                </td>
                 <td class="right">${{ number_format($detalle->subtotal, 2) }}</td>
             </tr>
             @endforeach

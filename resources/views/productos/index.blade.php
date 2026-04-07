@@ -17,9 +17,12 @@
                 <div class="col-md-6">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" name="buscar" class="form-control" 
+                        <input type="text" name="buscar" id="buscar-input" class="form-control" 
                                placeholder="Buscar por nombre o código..." 
                                value="{{ request('buscar') }}">
+                        <button class="btn btn-outline-primary" type="button" onclick="abrirEscaner()">
+                            <i class="bi bi-camera-fill"></i>
+                        </button>
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -98,14 +101,12 @@
                                     <a href="{{ route('productos.edit', $producto) }}" class="btn btn-outline-primary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <form method="POST" action="{{ route('productos.destroy', $producto) }}" class="d-inline"
-                                          onsubmit="return confirm('¿Eliminar este producto?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                    <a href="{{ route('productos.delete-secure', $producto) }}" 
+                                       class="btn btn-outline-danger" 
+                                       title="Eliminar"
+                                       onclick="return confirm('¿Seguro que quieres eliminar este producto?')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
                                 </div>
                             </td>
                         </tr>
@@ -127,4 +128,70 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Escáner -->
+<div class="modal fade" id="escanerModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content overflow-hidden border-0 shadow">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold">BUSCAR POR CÓDIGO</h6>
+                <button type="button" class="btn-close btn-close-white" onclick="cerrarEscaner()"></button>
+            </div>
+            <div class="modal-body p-0 bg-dark" style="min-height: 300px;">
+                <div id="reader" style="width: 100%;"></div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="cerrarEscaner()">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
+
+@push('js')
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+    let html5QrCode = null;
+    const escanerModal = new bootstrap.Modal(document.getElementById('escanerModal'));
+
+    function abrirEscaner() {
+        escanerModal.show();
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            { 
+                fps: 15, 
+                qrbox: { width: 250, height: 150 } 
+            },
+            onScanSuccess
+        ).catch(err => {
+            console.error("No se pudo iniciar la cámara", err);
+            alert("Error al acceder a la cámara. Asegúrate de dar permisos.");
+            escanerModal.hide();
+        });
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        document.getElementById('buscar-input').value = decodedText;
+        cerrarEscaner();
+        if (navigator.vibrate) navigator.vibrate(100);
+        // Enviar el formulario automáticamente
+        document.getElementById('buscar-input').closest('form').submit();
+    }
+
+    function cerrarEscaner() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode = null;
+                escanerModal.hide();
+            }).catch(e => {
+                html5QrCode = null;
+                escanerModal.hide();
+            });
+        } else {
+            escanerModal.hide();
+        }
+    }
+</script>
+@endpush

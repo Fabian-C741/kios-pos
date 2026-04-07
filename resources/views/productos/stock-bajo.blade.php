@@ -8,12 +8,15 @@
         <h2><i class="bi bi-exclamation-triangle text-danger"></i> Alerta de Stock Bajo</h2>
         <div>
             @role('admin')
-            <form method="POST" action="{{ route('productos.notificar-stock-bajo') }}" class="d-inline">
-                @csrf
-                <button type="submit" class="btn btn-warning">
-                    <i class="bi bi-bell"></i> Enviar Notificaciones
+
+            @php
+                $waNum = \Illuminate\Support\Facades\DB::table('configuraciones')->where('key', 'whatsapp_notificacion')->value('value');
+            @endphp
+            @if($waNum && $productos->count() > 0)
+                <button type="button" class="btn btn-success" onclick="enviarReporteWhatsApp('{{ $waNum }}')">
+                    <i class="bi bi-whatsapp"></i> Mandar a mi WhatsApp
                 </button>
-            </form>
+            @endif
             @endrole
             <a href="{{ route('productos.index') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Volver
@@ -88,4 +91,35 @@
         </div>
     </div>
 </div>
+
+@push('js')
+<script>
+    function enviarReporteWhatsApp(numero) {
+        const filas = document.querySelectorAll('tbody tr');
+        let mensaje = "*🚀 REPORTE DE FALTANTES - {{ $config['nombre_kiosco'] ?? 'Kiosco POS' }}*\n";
+        mensaje += "--------------------------------------\n";
+        
+        let hayProductos = false;
+        filas.forEach(fila => {
+            const nombre = fila.querySelector('td strong').innerText.trim();
+            const stock = fila.querySelector('td:nth-child(3)').innerText.trim();
+            const agotado = fila.innerText.includes('AGOTADO');
+            
+            mensaje += `${agotado ? '🔴' : '⚠️'} *${nombre}* (Stock: ${stock})\n`;
+            hayProductos = true;
+        });
+
+        if (!hayProductos) {
+            alert("No hay productos en la lista para enviar.");
+            return;
+        }
+
+        mensaje += "--------------------------------------\n";
+        mensaje += "_Generado automáticamente por tu Kiosco POS_";
+
+        const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
+        window.open(url, '_blank');
+    }
+</script>
+@endpush
 @endsection

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('telefono')->nullable();
             $table->boolean('activo')->default(true);
             $table->rememberToken();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

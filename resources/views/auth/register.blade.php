@@ -12,10 +12,18 @@
                     <form method="POST" action="{{ route('register') }}">
                         @csrf
                         <div class="mb-3">
-                            <label class="form-label">Nombre</label>
+                            <label class="form-label">Nombre Completo</label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" 
                                    value="{{ old('name') }}" required autofocus>
                             @error('name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nombre de Usuario (@)</label>
+                            <input type="text" name="username" class="form-control @error('username') is-invalid @enderror" 
+                                   value="{{ old('username') }}" required>
+                            @error('username')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>

@@ -23,17 +23,27 @@ class VentaController extends Controller
 
     public function index(Request $request)
     {
-        $fecha = $request->get('fecha', now()->toDateString());
+        $fecha = $request->get('fecha');
+        $search = $request->get('search');
         
         $ventas = Venta::with(['user', 'detalles.producto'])
             ->when($fecha, function ($query) use ($fecha) {
                 return $query->whereDate('fecha_venta', $fecha);
             })
+            ->when($search, function ($query) use ($search) {
+                // El ID es la base de nuestro Folio V-000X
+                $cleanId = preg_replace('/[^0-9]/', '', $search);
+                return $query->where('id', 'like', "%{$cleanId}%");
+            })
             ->orderBy('fecha_venta', 'desc')
             ->paginate(20);
 
         $totalDia = Venta::completadas()
-            ->whereDate('fecha_venta', $fecha)
+            ->when($fecha, function($q) use ($fecha) {
+                return $q->whereDate('fecha_venta', $fecha);
+            }, function($q) {
+                return $q->whereDate('fecha_venta', now());
+            })
             ->sum('total');
 
         return view('ventas.index', compact('ventas', 'fecha', 'totalDia'));
@@ -42,7 +52,6 @@ class VentaController extends Controller
     public function create()
     {
         $productos = Producto::activos()
-            ->where('stock', '>', 0)
             ->orderBy('nombre')
             ->get();
 
@@ -56,19 +65,30 @@ class VentaController extends Controller
 
     public function store(Request $request)
     {
+        // Decodificar el JSON de productos que viene de la vista v1.6
+        $productosData = json_decode($request->productos_json, true);
+        
+        if (!$productosData || empty($productosData)) {
+            return redirect()->back()
+                ->with('error', 'El carrito está vacío o el formato es inválido.')
+                ->withInput();
+        }
+
+        // Inyectar los productos al request para la validación tradicional de Laravel
+        $request->merge(['productos' => $productosData]);
+
         $validator = Validator::make($request->all(), [
             'productos' => 'required|array|min:1',
-            'productos.*.id' => 'required|exists:productos,id',
-            'productos.*.cantidad' => 'required|integer|min:1',
-            'metodo_pago' => 'required|in:efectivo,tarjeta,transferencia,mixto',
-            'efectivo_recibido' => 'nullable|numeric|min:0',
-            'descuento' => 'nullable|numeric|min:0',
-            'notas' => 'nullable|string',
+            'productos.*.id' => 'required', // Relajado para permitir códigos temporales como MANUAL_xxx
+            'productos.*.cantidad' => 'required|numeric|min:0.001',
+            'metodo_pago' => 'required|string',
+            'efectivo_recibido' => 'nullable|numeric',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
+                ->with('error', 'Error en la validación: ' . implode(', ', $validator->errors()->all()))
                 ->withInput();
         }
 
@@ -80,27 +100,55 @@ class VentaController extends Controller
                 $productosData = $request->productos;
             }
 
+            $tempProductos = [];
+            foreach ($productosData as $item) {
+                $id = $item['id'];
+                if (isset($tempProductos[$id])) {
+                    $tempProductos[$id]['cantidad'] += $item['cantidad'];
+                } else {
+                    $tempProductos[$id] = $item;
+                }
+            }
+            $productosData = array_values($tempProductos);
+
             $total = 0;
             $detalles = [];
 
             foreach ($productosData as $item) {
                 $producto = Producto::find($item['id']);
                 
-                if ($producto->stock < $item['cantidad']) {
-                    throw new \Exception("Stock insuficiente para {$producto->nombre}");
+                if (!$producto) {
+                    // Si es una Venta Manual (ID inventado) creamos un producto comodín invisible
+                    $producto = Producto::firstOrCreate(
+                        ['codigo_barras' => 'MANUAL999'],
+                        [
+                            'nombre' => 'ARTICULO MANUAL',
+                            'precio' => 1,
+                            'stock' => 999999,
+                            'stock_minimo' => 0
+                        ]
+                    );
                 }
 
-                $subtotal = $producto->precio * $item['cantidad'];
+                if ($producto->codigo_barras !== 'MANUAL999' && $producto->stock < $item['cantidad']) {
+                    throw new \Exception("Stock insuficiente para: {$producto->nombre} (Disponible: {$producto->stock})");
+                }
+
+                // Para ventas manuales, usamos el precio que el cajero definió en la pantalla
+                $precioReal = ($producto->codigo_barras === 'MANUAL999') ? $item['precio'] : $producto->precio;
+                $subtotal = $precioReal * $item['cantidad'];
                 $total += $subtotal;
 
                 $detalles[] = [
                     'producto_id' => $producto->id,
                     'cantidad' => $item['cantidad'],
-                    'precio_unitario' => $producto->precio,
+                    'precio_unitario' => $precioReal,
                     'subtotal' => $subtotal,
                 ];
 
-                $producto->decrement('stock', $item['cantidad']);
+                if ($producto->codigo_barras !== 'MANUAL999') {
+                    $producto->decrement('stock', $item['cantidad']);
+                }
             }
 
             $descuento = $request->descuento ?? 0;
@@ -109,6 +157,13 @@ class VentaController extends Controller
             $efectivoRecibido = $request->efectivo_recibido ?? 0;
             $cambio = $efectivoRecibido > $totalFinal ? $efectivoRecibido - $totalFinal : 0;
 
+            // Capturar nombres personalizados para el ticket (Plan B: Persistencia en notas)
+            $nombresManuales = [];
+            foreach ($productosData as $item) {
+                $nombresManuales[] = $item['nombre'];
+            }
+            $ajusteNotas = ($request->notas ? $request->notas . " | " : "") . "NAMES_JSON:" . json_encode($nombresManuales);
+
             $venta = Venta::create([
                 'user_id' => auth()->id(),
                 'total' => $totalFinal,
@@ -116,7 +171,7 @@ class VentaController extends Controller
                 'metodo_pago' => $request->metodo_pago,
                 'efectivo_recibido' => $efectivoRecibido,
                 'cambio' => $cambio,
-                'notas' => $request->notas,
+                'notas' => $ajusteNotas,
                 'estado' => 'completada',
                 'fecha_venta' => now(),
             ]);
@@ -127,8 +182,18 @@ class VentaController extends Controller
 
             DB::commit();
 
+            // Detectar productos que quedaron con stock bajo para avisar
+            $alertasStock = [];
+            foreach ($venta->detalles as $detalle) {
+                $p = $detalle->producto;
+                if ($p && $p->stock <= $p->stock_minimo) {
+                    $alertasStock[] = $p->nombre . " (" . $p->stock . ")";
+                }
+            }
+
             return redirect()->route('ventas.ticket', $venta->id)
                 ->with('success', 'Venta realizada exitosamente')
+                ->with('alertas_stock', $alertasStock)
                 ->with('venta_id', $venta->id);
 
         } catch (\Exception $e) {

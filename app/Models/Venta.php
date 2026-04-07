@@ -65,6 +65,6 @@ class Venta extends Model
 
     public function getNumeroVentaAttribute(): string
     {
-        return 'V-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+        return 'Folio #' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
     }
 }

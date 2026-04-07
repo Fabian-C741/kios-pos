@@ -2,115 +2,81 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\Helper;
 use App\Models\Producto;
 use App\Models\Venta;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    /**
+     * Display the professional dashboard with stats.
+     */
     public function index()
     {
+        // Estadísticas de Productos
         $totalProductos = Producto::count();
-        $productosActivos = Producto::where('activo', true)->count();
-        $stockTotal = Producto::sum('stock');
-        $valorInventario = Producto::selectRaw('SUM(precio * stock) as total')->value('total') ?? 0;
+        $productosActivos = Producto::activos()->count();
+        $stockTotal = Producto::activos()->sum('stock') ?? 0;
+        $valorInventario = Producto::activos()->selectRaw('SUM(precio * stock) as total')->value('total') ?? 0;
 
-        $productosStockBajo = Producto::stockBajo()
-            ->where('activo', true)
-            ->orderBy('stock', 'asc')
+        // Alertas de Stock
+        $productosStockBajo = Producto::stockBajo()->limit(10)->get();
+
+        // Ventas del Día
+        $ventasHoy = Venta::completadas()->whereDate('fecha_venta', today())->count();
+        $ventasHoyMonto = Venta::completadas()->whereDate('fecha_venta', today())->sum('total') ?? 0;
+
+        // Ventas Semanales (Lunes a Domingo)
+        $ventasSemana = Venta::completadas()->whereBetween('fecha_venta', [now()->startOfWeek(), now()->endOfWeek()])->count();
+        $ventasSemanaMonto = Venta::completadas()->whereBetween('fecha_venta', [now()->startOfWeek(), now()->endOfWeek()])->sum('total') ?? 0;
+
+        // Productos más vendidos
+        $productosMasVendidos = Producto::activos()
+            ->withCount('detalleVentas')
+            ->orderBy('detalle_ventas_count', 'desc')
             ->limit(10)
             ->get();
 
-        $ventasHoy = Venta::completadas()->delDia()->count();
-        $ventasHoyMonto = Venta::completadas()->delDia()->sum('total');
+        // Ventas Recientes
+        $ventasRecientes = Venta::completadas()->orderBy('fecha_venta', 'desc')->limit(10)->get();
 
-        $ventasSemana = Venta::completadas()
-            ->whereBetween('fecha_venta', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])
-            ->count();
-        $ventasSemanaMonto = Venta::completadas()
-            ->whereBetween('fecha_venta', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])
-            ->sum('total');
-
-        $productosMasVendidos = Producto::withCount(['detalleVentas as total_vendido' => function ($query) {
-            $query->selectRaw('SUM(cantidad)');
-        }])
-            ->where('activo', true)
-            ->orderByDesc('total_vendido')
-            ->limit(10)
-            ->get();
-
-        $ventasRecientes = Venta::with('user')
-            ->completadas()
-            ->orderBy('fecha_venta', 'desc')
-            ->limit(10)
-            ->get();
-
-        $usuariosActivos = User::where('activo', true)->count();
+        // Usuarios y Cajeros
+        $totalUsuarios = User::count();
         $cajerosActivos = User::whereHas('roles', function ($q) {
             $q->where('name', 'cajero');
         })->where('activo', true)->count();
 
         return view('dashboard.index', compact(
-            'totalProductos',
-            'productosActivos',
-            'stockTotal',
-            'valorInventario',
-            'productosStockBajo',
-            'ventasHoy',
-            'ventasHoyMonto',
-            'ventasSemana',
-            'ventasSemanaMonto',
-            'productosMasVendidos',
-            'ventasRecientes',
-            'usuariosActivos',
-            'cajerosActivos'
+            'totalProductos', 'productosActivos', 'stockTotal', 'valorInventario',
+            'productosStockBajo', 'ventasHoy', 'ventasHoyMonto', 'ventasSemana', 
+            'ventasSemanaMonto', 'productosMasVendidos', 'ventasRecientes',
+            'totalUsuarios', 'cajerosActivos'
         ));
     }
 
-    public function estadisticas(Request $request)
+    /**
+     * Endpoint para exportar productos para el modo Offline (PWA).
+     */
+    public function offlineProducts()
     {
-        $fechaInicio = $request->get('fecha_inicio', Carbon::now()->startOfMonth());
-        $fechaFin = $request->get('fecha_fin', Carbon::now()->endOfMonth());
-
-        $ventasPorDia = Venta::completadas()
-            ->whereBetween('fecha_venta', [$fechaInicio, $fechaFin])
-            ->selectRaw('DATE(fecha_venta) as fecha, COUNT(*) as cantidad, SUM(total) as total')
-            ->groupBy('fecha')
-            ->orderBy('fecha')
+        $productos = Producto::activos()
+            ->select('id', 'nombre', 'precio', 'stock', 'codigo_barras', 'categoria')
             ->get();
 
-        $productosPorCategoria = Producto::where('activo', true)
-            ->whereNotNull('categoria')
-            ->selectRaw('categoria, COUNT(*) as cantidad, SUM(stock) as stock')
-            ->groupBy('categoria')
-            ->get();
+        return response()->json($productos);
+    }
 
-        $metodosPago = Venta::completadas()
-            ->whereBetween('fecha_venta', [$fechaInicio, $fechaFin])
-            ->selectRaw('metodo_pago, COUNT(*) as cantidad, SUM(total) as total')
-            ->groupBy('metodo_pago')
-            ->get();
-
-        $topVendedores = User::withCount(['ventas' => function ($query) use ($fechaInicio, $fechaFin) {
-            $query->completadas()
-                ->whereBetween('fecha_venta', [$fechaInicio, $fechaFin]);
-        }])
-            ->withSum(['ventas' => function ($query) use ($fechaInicio, $fechaFin) {
-                $query->completadas()
-                    ->whereBetween('fecha_venta', [$fechaInicio, $fechaFin]);
-            }], 'total')
-            ->orderBy('ventas_count', 'desc')
-            ->limit(5)
-            ->get();
-
+    /**
+     * API endpoint para refrescar estadísticas dinámicamente.
+     */
+    public function estadisticas()
+    {
         return response()->json([
-            'ventas_por_dia' => $ventasPorDia,
-            'productos_por_categoria' => $productosPorCategoria,
-            'metodos_pago' => $metodosPago,
-            'top_vendedores' => $topVendedores,
+            'ventas_hoy' => Venta::completadas()->whereDate('fecha_venta', today())->sum('total') ?? 0,
+            'stock_total' => Producto::activos()->sum('stock') ?? 0,
+            'productos_bajos' => Producto::stockBajo()->count(),
         ]);
     }
 }

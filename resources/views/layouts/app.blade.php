@@ -1,189 +1,266 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#0d6efd">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Kiosco">
-    <link rel="manifest" href="/manifest.json">
-    <title>{{ $title ?? 'Sistema Kiosco' }} - @yield('title', '')</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <title>{{ config('app.name', 'Kiosco POS') }} - @yield('title', 'Inicio')</title>
+
+    @php
+        $brandingFavicon = \Illuminate\Support\Facades\DB::table('configuraciones')->where('key', 'favicon')->value('value');
+    @endphp
+    @if($brandingFavicon)
+        <link rel="icon" type="image/x-icon" href="{{ $brandingFavicon }}">
+    @endif
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- CSS (Bootstrap & Icons) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
     <style>
         :root {
-            --primary: #0d6efd;
-            --success: #198754;
-            --danger: #dc3545;
-            --warning: #ffc107;
+            --primary-color: #4e73df;
+            --secondary-color: #858796;
+            --success-color: #1cc88a;
+            --info-color: #36b9cc;
+            --warning-color: #f6c23e;
+            --danger-color: #e74a3b;
+            --dark-bg: #1a1c23;
+            --sidebar-width: 250px;
         }
-        .sidebar {
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fc;
+            overflow-x: hidden;
+        }
+
+        #wrapper {
+            display: flex;
+            width: 100%;
+        }
+
+        #sidebar-wrapper {
             min-height: 100vh;
-            background: #1a1d21;
-        }
-        .sidebar .nav-link {
-            color: #adb5bd;
-            border-radius: 0.375rem;
-            margin: 2px 8px;
-        }
-        .sidebar .nav-link:hover {
-            background: #2d3238;
+            width: var(--sidebar-width);
+            background-color: #4e73df;
             color: #fff;
+            transition: all 0.3s;
+            z-index: 1000;
         }
-        .sidebar .nav-link.active {
-            background: var(--primary);
-            color: #fff;
+
+        .sidebar-heading {
+            padding: 1.5rem 1rem;
+            font-size: 1.25rem;
+            font-weight: 700;
         }
-        .sidebar .nav-link i {
-            width: 24px;
-        }
-        .card-stat {
+
+        .list-group-item {
+            background: transparent;
             border: none;
-            border-radius: 12px;
-            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            color: rgba(255, 255, 255, .8);
+            padding: 0.75rem 1.25rem;
+            border-radius: 0;
+            transition: all 0.2s;
         }
-        .table-responsive {
-            border-radius: 8px;
-            overflow: hidden;
+
+        .list-group-item:hover, .list-group-item.active {
+            background-color: rgba(255, 255, 255, .1);
+            color: #fff;
         }
+
+        .list-group-item i {
+            margin-right: 0.75rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        #page-content-wrapper {
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background-color: #fff;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+        }
+
         .badge-stock {
             font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+        /* Estilos específicos para Kiosco */
+        .card-stat {
+            border: none;
+            border-radius: 10px;
+            transition: transform 0.2s;
+            overflow: hidden;
+        }
+
+        .card-stat:hover {
+            transform: translateY(-5px);
+        }
+
+        @media (max-width: 768px) {
+            #sidebar-wrapper {
+                margin-left: calc(-1 * var(--sidebar-width));
+            }
+            #wrapper.toggled #sidebar-wrapper {
+                margin-left: 0;
+            }
         }
     </style>
-    @stack('styles')
+    @stack('css')
 </head>
 <body>
-    <div class="container-fluid p-0">
-        <div class="row g-0">
+    @php
+        $brandingName = \Illuminate\Support\Facades\DB::table('configuraciones')->where('key', 'nombre_kiosco')->value('value') ?? 'Kiosco POS';
+        $brandingLogo = \Illuminate\Support\Facades\DB::table('configuraciones')->where('key', 'logo')->value('value');
+    @endphp
+
+    <div id="wrapper">
+        @auth
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <div class="sidebar-heading border-bottom text-center">
+                @if($brandingLogo)
+                    <img src="{{ $brandingLogo }}" alt="Logo" class="img-fluid mb-2" style="max-height: 40px;">
+                @else
+                    <i class="bi bi-shop"></i>
+                @endif
+                {{ $brandingName }}
+            </div>
+            <div class="list-group list-group-flush mt-3">
+                <a href="{{ route('dashboard') }}" class="list-group-item list-group-item-action {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                
+                <a href="{{ route('ventas.create') }}" class="list-group-item list-group-item-action {{ request()->routeIs('ventas.create') ? 'active' : '' }}">
+                    <i class="bi bi-cart-plus"></i> Nueva Venta
+                </a>
+
+                <a href="{{ route('ventas.index') }}" class="list-group-item list-group-item-action {{ request()->routeIs('ventas.index') ? 'active' : '' }}">
+                    <i class="bi bi-journal-text"></i> Historial Ventas
+                </a>
+
+                <a href="{{ route('productos.index') }}" class="list-group-item list-group-item-action {{ request()->routeIs('productos.index') ? 'active' : '' }}">
+                    <i class="bi bi-box-seam"></i> Inventario
+                </a>
+
+                <a href="{{ route('productos.stock-bajo') }}" class="list-group-item list-group-item-action {{ request()->routeIs('productos.stock-bajo') ? 'active' : '' }}">
+                    <i class="bi bi-exclamation-triangle-fill text-warning"></i> Faltantes (WhatsApp)
+                </a>
+
+                @if(auth()->user()->isAdmin())
+                <div class="small fw-bold text-uppercase px-3 mt-4 mb-2 opacity-50">Administración</div>
+                
+                <a href="{{ route('users.index') }}" class="list-group-item list-group-item-action {{ request()->routeIs('users.*') ? 'active' : '' }}">
+                    <i class="bi bi-people"></i> Usuarios
+                </a>
+                
+                <a href="{{ route('configuracion.index') }}" class="list-group-item list-group-item-action {{ request()->routeIs('configuracion.*') ? 'active' : '' }}">
+                    <i class="bi bi-gear"></i> Configuración
+                </a>
+                @endif
+
+                <form method="POST" action="{{ route('logout') }}" id="logout-form">
+                    @csrf
+                    <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="list-group-item list-group-item-action mt-4 text-warning">
+                        <i class="bi bi-box-arrow-left"></i> Cerrar Sesión
+                    </a>
+                </form>
+            </div>
+        </div>
+        @endauth
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
             @auth
-            <nav class="col-md-2 d-md-block sidebar collapse show" id="sidebarMenu">
-                <div class="position-sticky pt-3">
-                    <div class="px-3 mb-4">
-                        <h5 class="text-white mb-0">
-                            <i class="bi bi-shop"></i> Kiosco
-                        </h5>
-                        <small class="text-muted">Sistema de Ventas</small>
+            <nav class="navbar navbar-expand-lg navbar-light border-bottom py-3">
+                <div class="container-fluid">
+                    <button class="btn btn-outline-primary d-md-none" id="sidebarToggle">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    
+                    <div class="ms-auto d-flex align-items-center">
+                        <!-- Indicador Offline/PWA -->
+                        <div id="offline-indicator" class="me-3 badge bg-success- Greenwich text-success border border-success-subtle rounded-pill px-3">
+                            <i class="bi bi-wifi"></i> Online
+                        </div>
+
+                        <div class="dropdown">
+                            <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark" id="dropdownUser" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle fs-4 me-2"></i>
+                                <span>{{ auth()->user()->name }}</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3" aria-labelledby="dropdownUser">
+                                <li><a class="dropdown-item" href="{{ route('profile.edit') }}"><i class="bi bi-person me-2"></i> Mi Perfil</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="POST" action="{{ route('logout') }}">
+                                        @csrf
+                                        <button class="dropdown-item text-danger" type="submit">
+                                            <i class="bi bi-box-arrow-left me-2"></i> Salir
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
-                                <i class="bi bi-speedometer2"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('ventas.*') ? 'active' : '' }}" href="{{ route('ventas.index') }}">
-                                <i class="bi bi-cart3"></i> Ventas
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('productos.*') ? 'active' : '' }}" href="{{ route('productos.index') }}">
-                                <i class="bi bi-box-seam"></i> Productos
-                            </a>
-                        </li>
-                        @role('admin')
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
-                                <i class="bi bi-people"></i> Usuarios
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('cajas.*') ? 'active' : '' }}" href="{{ route('cajas.index') }}">
-                                <i class="bi bi-cash-register"></i> Cajas
-                            </a>
-                        </li>
-                        @endrole
-                        <li class="nav-item mt-3">
-                            <a class="nav-link {{ request()->routeIs('productos.stock-bajo') ? 'active' : '' }}" href="{{ route('productos.stock-bajo') }}">
-                                <i class="bi bi-exclamation-triangle"></i> Stock Bajo
-                                @php
-                                    $stockBajoCount = \App\Models\Producto::stockBajo()->where('activo', true)->count();
-                                @endphp
-                                @if($stockBajoCount > 0)
-                                    <span class="badge bg-danger float-end">{{ $stockBajoCount }}</span>
-                                @endif
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('ventas.reporte') ? 'active' : '' }}" href="{{ route('ventas.reporte') }}">
-                                <i class="bi bi-file-earmark-bar-graph"></i> Reportes
-                            </a>
-                        </li>
-                    </ul>
-                    
-                    <hr class="my-3 border-secondary">
-                    
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}" href="{{ route('profile.edit') }}">
-                                <i class="bi bi-person-gear"></i> Perfil
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <button type="submit" class="nav-link border-0 w-100 text-start bg-transparent">
-                                    <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
                 </div>
             </nav>
-            
-            <main class="col-md-10 ms-sm-auto px-md-4">
-                <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom mb-4">
-                    <div class="container-fluid">
-                        <button class="btn btn-outline-secondary d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
-                            <i class="bi bi-list"></i>
-                        </button>
-                        <span class="navbar-text">
-                            <i class="bi bi-person-circle"></i> {{ auth()->user()->name }}
-                        </span>
-                    </div>
-                </nav>
-            @else
-            <main class="col-12">
             @endauth
-            
+
+            <div class="container-fluid">
                 @if(session('success'))
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <i class="bi bi-check-circle"></i> {{ session('success') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+                        <i class="bi bi-check-circle me-2"></i> {{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 @endif
-                
+
                 @if(session('error'))
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="bi bi-x-circle"></i> {{ session('error') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i> {{ session('error') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 @endif
-                
-                @if(session('warning'))
-                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                        <i class="bi bi-exclamation-circle"></i> {{ session('warning') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-                
+
                 @yield('content')
-            </main>
+            </div>
         </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    @stack('scripts')
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ELIMINAR CUALQUER SERVICE WORKER ANTIGUO (Causante del 404 y bloqueo de cache)
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('SW registered'))
-                    .catch(err => console.log('SW registration failed'));
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
             });
         }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', event => {
+                    event.preventDefault();
+                    document.body.classList.toggle('sb-sidenav-toggled');
+                    document.getElementById('wrapper').classList.toggle('toggled');
+                });
+            }
+        });
     </script>
+    @stack('js')
 </body>
 </html>

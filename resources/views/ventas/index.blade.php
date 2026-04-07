@@ -11,21 +11,30 @@
         </a>
     </div>
     
-    <div class="card mb-4">
-        <div class="card-body">
+    <div class="card mb-4 shadow-sm border-0">
+        <div class="card-body p-3">
             <form method="GET" class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Fecha</label>
-                    <input type="date" name="fecha" class="form-control" value="{{ $fecha }}" 
-                           onchange="this.form.submit()">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small text-muted">BUSCAR FOLIO</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-primary"></i></span>
+                        <input type="text" name="search" class="form-control border-start-0" placeholder="Ej: 0001" value="{{ request('search') }}">
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Total del día</label>
-                    <div class="form-control bg-light fw-bold">${{ number_format($totalDia, 2) }}</div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small text-muted">FILTRAR POR FECHA</label>
+                    <input type="date" name="fecha" class="form-control" value="{{ request('fecha', $fecha ?? '') }}">
                 </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <a href="{{ route('ventas.reporte') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-file-earmark-bar-graph"></i> Ver Reportes
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small text-success">TOTAL DEL DÍA</label>
+                    <div class="form-control bg-light fw-bold text-success border-0">${{ number_format($totalDia, 2) }}</div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                        FILTRAR
+                    </button>
+                    <a href="{{ route('ventas.index') }}" class="btn btn-outline-secondary shadow-sm" title="Limpiar">
+                        <i class="bi bi-arrow-counterclockwise"></i>
                     </a>
                 </div>
             </form>
@@ -57,7 +66,7 @@
                                 {{ $venta->fecha_venta->format('d/m/Y H:i') }}
                             </td>
                             <td>
-                                <i class="bi bi-person"></i> {{ $venta->user->name }}
+                                <i class="bi bi-person"></i> {{ $venta->user->name ?? 'Usuario Eliminado' }}
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-secondary">{{ $venta->detalles->count() }}</span>
